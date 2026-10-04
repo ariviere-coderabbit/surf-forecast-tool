@@ -59,15 +59,30 @@ def merge_waves(
         def _ci(key: str) -> Optional[float]:
             return _circular_mean(_collect_non_none(measurements, key))
 
+        # Periods: prefer Open-Meteo (dominant/peak proxy) over NOAA mean
+        # period to avoid mixing incompatible statistics.
+        def _prefer_period(key: str) -> Optional[float]:
+            om = next(
+                (getattr(m, key) for m in measurements
+                 if m.provider == "open-meteo" and getattr(m, key) is not None),
+                None,
+            )
+            if om is not None:
+                return om
+            return next(
+                (getattr(m, key) for m in measurements if getattr(m, key) is not None),
+                None,
+            )
+
         merged[ts] = {
             "wave_height_m": _sc("wave_height_m"),
-            "wave_period_s": _sc("wave_period_s"),
+            "wave_period_s": _prefer_period("wave_period_s"),
             "wave_direction_deg": _ci("wave_direction_deg"),
             "wind_wave_height_m": _sc("wind_wave_height_m"),
             "wind_wave_period_s": _sc("wind_wave_period_s"),
             "wind_wave_direction_deg": _ci("wind_wave_direction_deg"),
             "swell_height_m": _sc("swell_height_m"),
-            "swell_period_s": _sc("swell_period_s"),
+            "swell_period_s": _prefer_period("swell_period_s"),
             "swell_direction_deg": _ci("swell_direction_deg"),
         }
     return merged

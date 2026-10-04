@@ -76,7 +76,7 @@ async def forecast_endpoint(
     country: str = Query(""),
     country_code: str = Query(""),
 ):
-    cache_key = f"forecast|{lat:.4f}|{lon:.4f}"
+    cache_key = f"forecast|{lat:.4f}|{lon:.4f}|{timezone}|{name}|{country}"
     cached = forecast_cache.get(cache_key)
     if cached:
         return ForecastResponse(**cached)
@@ -195,7 +195,10 @@ async def forecast_endpoint(
         notices=notices,
     )
 
-    forecast_cache.set(cache_key, response.model_dump(mode="json"))
+    # Only cache complete responses (NOAA data present); partial ones should
+    # be re-fetched so warnings don't persist after the provider catches up.
+    if not warnings:
+        forecast_cache.set(cache_key, response.model_dump(mode="json"))
     return response
 
 

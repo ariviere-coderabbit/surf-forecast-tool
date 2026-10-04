@@ -1,6 +1,7 @@
 """Simple disk-based JSON cache with per-key TTL."""
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -16,8 +17,9 @@ class DiskCache:
         self._ttl = ttl
 
     def _path(self, key: str) -> Path:
-        safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in key)
-        return self._dir / f"{safe}.json"
+        safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in key)[:64]
+        h = hashlib.sha1(key.encode()).hexdigest()[:8]
+        return self._dir / f"{safe}_{h}.json"
 
     def get(self, key: str) -> Optional[Any]:
         p = self._path(key)

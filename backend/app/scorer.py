@@ -74,16 +74,16 @@ def score_hour(h: HourlyConditions, profile: SpotProfile) -> tuple[float, float,
     data_count = 0
     total_fields = 4
 
-    # Wave height
-    height = h.wave_height_m or h.swell_height_m
+    # Wave height — prefer combined, fall back to swell; 0.0 is valid
+    height = h.wave_height_m if h.wave_height_m is not None else h.swell_height_m
     if height is not None:
         components["wave_height"] = _height_score(
             height, profile.ideal_wave_height_min_m, profile.ideal_wave_height_max_m
         )
         data_count += 1
 
-    # Wave period
-    period = h.wave_period_s or h.swell_period_s
+    # Wave period — prefer combined, fall back to swell; 0.0 is valid
+    period = h.wave_period_s if h.wave_period_s is not None else h.swell_period_s
     if period is not None:
         components["wave_period"] = _period_score(period, profile.ideal_period_min_s)
         data_count += 1
@@ -95,8 +95,8 @@ def score_hour(h: HourlyConditions, profile: SpotProfile) -> tuple[float, float,
         )
         data_count += 1
 
-    # Swell direction
-    swell_dir = h.swell_direction_deg or h.wave_direction_deg
+    # Swell direction — prefer swell, fall back to combined; 0.0° is valid
+    swell_dir = h.swell_direction_deg if h.swell_direction_deg is not None else h.wave_direction_deg
     if swell_dir is not None and profile.ideal_swell_direction_deg is not None:
         components["direction"] = _direction_score(
             swell_dir,

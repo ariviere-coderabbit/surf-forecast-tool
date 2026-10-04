@@ -65,6 +65,7 @@ _FIELD_MAP = {
 }
 
 _last_refresh: Optional[float] = None
+_running_task: Optional[asyncio.Task] = None
 _refresh_lock = asyncio.Lock()
 
 
@@ -178,36 +179,43 @@ def _decode_grib(content: bytes, date_str: str, hh: str, fhour: int) -> Optional
 
 
 async def _refresh_cycle(date_str: str, hh: str) -> None:
+    global _last_refresh, _running_task
     log.info("Refreshing NOAA GFS-Wave cycle %s/%s", date_str, hh)
     path = _cache_path(date_str, hh)
     hours_data: list[dict] = []
 
-    async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-        for fhour in _FHOURS:
-            result = await _fetch_one_hour(client, date_str, hh, fhour)
-            if result is not None:
-                hours_data.append(result)
-            await asyncio.sleep(settings.noaa_request_pace)
+    try:
+        async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
+            for fhour in _FHOURS:
+                result = await _fetch_one_hour(client, date_str, hh, fhour)
+                if result is not None:
+                    hours_data.append(result)
+                await asyncio.sleep(settings.noaa_request_pace)
 
-    if hours_data:
-        path.write_text(json.dumps(hours_data))
-        log.info("Saved %d NOAA forecast hours to %s", len(hours_data), path)
-    else:
-        log.warning("No NOAA data retrieved for cycle %s/%s", date_str, hh)
+        if hours_data:
+            path.write_text(json.dumps(hours_data))
+            log.info("Saved %d NOAA forecast hours to %s", len(hours_data), path)
+            _last_refresh = time.monotonic()
+        else:
+            log.warning("No NOAA data retrieved for cycle %s/%s — will retry next call", date_str, hh)
+    finally:
+        _running_task = None
 
 
 async def maybe_refresh() -> None:
-    """Trigger a background refresh if data is stale or missing."""
-    global _last_refresh
+    """Trigger a background refresh if data is stale, missing, or not running."""
+    global _running_task
     async with _refresh_lock:
+        # If a refresh is already in flight, don't start another one.
+        if _running_task is not None and not _running_task.done():
+            return
         if _last_refresh and (time.monotonic() - _last_refresh) < settings.noaa_refresh_interval:
             return
         now = datetime.now(timezone.utc)
         date_str, hh = _latest_cycle(now)
         path = _cache_path(date_str, hh)
         if not path.exists():
-            asyncio.create_task(_refresh_cycle(date_str, hh))
-        _last_refresh = time.monotonic()
+            _running_task = asyncio.create_task(_refresh_cycle(date_str, hh))
 
 
 def _nearest_point(
