@@ -23,10 +23,21 @@ _NOTE = "Modeled sea level, not a tide table."
 
 
 def _parse_ts(s: str) -> datetime:
+    """Parse an ISO timestamp and replace its timezone with UTC without conversion.
+
+    Raise ValueError for an invalid timestamp string.
+    """
     return datetime.fromisoformat(s).replace(tzinfo=timezone.utc)
 
 
 async def fetch_sea_level(lat: float, lon: float) -> list[SeaLevelMeasurement]:
+    """Fetch hourly modeled sea-level heights in meters for coordinates in degrees.
+
+    Return UTC measurements labeled as modeled sea level, not a tide table.
+    Return an empty list on HTTP errors, status codes >=400, or absent heights;
+    missing individual heights remain None. JSON decoding, timestamp or
+    numeric conversion, and model validation errors propagate.
+    """
     params = {
         "latitude": lat,
         "longitude": lon,

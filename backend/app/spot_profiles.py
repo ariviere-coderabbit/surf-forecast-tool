@@ -46,6 +46,7 @@ _NAMED_PROFILES: list[SpotProfile] = [_JACO]
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Return great-circle distance in kilometers for coordinates in degrees."""
     R = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -55,6 +56,11 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def get_profile(lat: float, lon: float) -> SpotProfile:
+    """Return the first named profile within 15 km, or the generic fallback.
+
+    Coordinates are in degrees. Return a copy using the requested coordinates;
+    a point exactly 15 km away still matches.
+    """
     for profile in _NAMED_PROFILES:
         if _haversine_km(lat, lon, profile.latitude, profile.longitude) <= _MATCH_RADIUS_KM:
             return profile.model_copy(update={"latitude": lat, "longitude": lon})

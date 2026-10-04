@@ -22,6 +22,10 @@ from app.models import HourlyConditions, WindMeasurement, WaveMeasurement
 
 
 def _circular_mean(angles: list[float]) -> Optional[float]:
+    """Return the circular mean of angles in degrees, or None for empty input.
+
+    Opposing angles still yield a numeric result, even when the mean is ambiguous.
+    """
     if not angles:
         return None
     sin_sum = sum(math.sin(math.radians(a)) for a in angles)
@@ -31,21 +35,30 @@ def _circular_mean(angles: list[float]) -> Optional[float]:
 
 
 def _scalar_mean(values: list[float]) -> Optional[float]:
+    """Return the arithmetic mean, or None for empty input."""
     return sum(values) / len(values) if values else None
 
 
 def _floor_hour(ts: datetime) -> datetime:
+    """Truncate to the start of the hour, preserving the existing timezone."""
     return ts.replace(minute=0, second=0, microsecond=0)
 
 
 def _collect_non_none(series: list, key: str) -> list[float]:
+    """Collect named attributes in input order, omitting absent or None values."""
     return [getattr(m, key) for m in series if getattr(m, key, None) is not None]
 
 
 def merge_waves(
     *provider_series: list[WaveMeasurement],
 ) -> dict[datetime, dict]:
-    """Group measurements by hour and compute merged values."""
+    """Merge measurements at timestamps truncated to the start of each hour.
+
+    Average non-missing heights and use circular means for directions. For
+    each period field, use the first non-missing Open-Meteo value, falling
+    back to the first non-missing value from any provider. Preserve units,
+    leave absent fields as None, and do not interpolate missing hours.
+    """
     by_hour: dict[datetime, list[WaveMeasurement]] = defaultdict(list)
     for series in provider_series:
         for m in series:
@@ -54,14 +67,17 @@ def merge_waves(
     merged: dict[datetime, dict] = {}
     for ts, measurements in sorted(by_hour.items()):
         def _sc(key: str) -> Optional[float]:
+            """Average this hour's non-missing field values, or return None."""
             return _scalar_mean(_collect_non_none(measurements, key))
 
         def _ci(key: str) -> Optional[float]:
+            """Circularly average this hour's non-missing degree values, or return None."""
             return _circular_mean(_collect_non_none(measurements, key))
 
         # Periods: prefer Open-Meteo (dominant/peak proxy) over NOAA mean
         # period to avoid mixing incompatible statistics.
         def _prefer_period(key: str) -> Optional[float]:
+            """Prefer the first available Open-Meteo period, then any provider, else None."""
             om = next(
                 (getattr(m, key) for m in measurements
                  if m.provider == "open-meteo" and getattr(m, key) is not None),
@@ -89,6 +105,12 @@ def merge_waves(
 
 
 def merge_wind(series: list[WindMeasurement]) -> dict[datetime, dict]:
+    """Merge wind at timestamps truncated to the start of each hour.
+
+    Average non-missing speeds and gusts in meters per second, and circularly
+    average directions in degrees. Leave absent fields as None without
+    interpolating missing hours.
+    """
     by_hour: dict[datetime, list[WindMeasurement]] = defaultdict(list)
     for m in series:
         by_hour[_floor_hour(m.timestamp)].append(m)
@@ -96,9 +118,11 @@ def merge_wind(series: list[WindMeasurement]) -> dict[datetime, dict]:
     merged: dict[datetime, dict] = {}
     for ts, measurements in sorted(by_hour.items()):
         def _sc(key: str) -> Optional[float]:
+            """Average this hour's non-missing field values, or return None."""
             return _scalar_mean(_collect_non_none(measurements, key))
 
         def _ci(key: str) -> Optional[float]:
+            """Circularly average this hour's non-missing degree values, or return None."""
             return _circular_mean(_collect_non_none(measurements, key))
 
         merged[ts] = {
@@ -114,6 +138,12 @@ def build_hourly(
     wind_series: list[WindMeasurement],
     sea_level_by_hour: dict[datetime, Optional[float]],
 ) -> list[HourlyConditions]:
+    """Return time-sorted conditions for the union of wave, wind, and sea-level hours.
+
+    Sea-level keys must already be aligned to the desired hours and heights
+    are in meters. Missing values remain None; missing hours are not filled.
+    Scores are left unset.
+    """
     wave_merged = merge_waves(*wave_series)
     wind_merged = merge_wind(wind_series)
 

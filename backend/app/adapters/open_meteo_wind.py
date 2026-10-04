@@ -28,10 +28,21 @@ _WIND_MODEL = "best_match"
 
 
 def _parse_ts(s: str) -> datetime:
+    """Parse an ISO timestamp and replace its timezone with UTC without conversion.
+
+    Raise ValueError for an invalid timestamp string.
+    """
     return datetime.fromisoformat(s).replace(tzinfo=timezone.utc)
 
 
 async def fetch_wind(lat: float, lon: float) -> list[WindMeasurement]:
+    """Request seven days of hourly 10-meter wind for coordinates in degrees.
+
+    Return UTC measurements with speed and gusts in meters per second and
+    direction in degrees. Missing field values remain None; absent timestamps
+    yield an empty list. HTTP, JSON decoding, timestamp or numeric conversion,
+    and model validation errors propagate.
+    """
     params = {
         "latitude": lat,
         "longitude": lon,
@@ -56,6 +67,10 @@ async def fetch_wind(lat: float, lon: float) -> list[WindMeasurement]:
     measurements: list[WindMeasurement] = []
     for i, ts_str in enumerate(times):
         def _v(key: str) -> Optional[float]:
+            """Return this hour's numeric field, or None if absent or null.
+
+            Invalid numeric values raise TypeError or ValueError.
+            """
             vals = hourly.get(key, [])
             if i < len(vals):
                 v = vals[i]

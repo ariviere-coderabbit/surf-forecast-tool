@@ -14,6 +14,7 @@ _GEO_URL = "https://geocoding-api.open-meteo.com/v1/search"
 
 
 def _strip_accents(s: str) -> str:
+    """Return text with nonspacing marks removed after Unicode NFD decomposition."""
     return "".join(
         c for c in unicodedata.normalize("NFD", s)
         if unicodedata.category(c) != "Mn"
@@ -21,10 +22,16 @@ def _strip_accents(s: str) -> str:
 
 
 def _normalise(s: str) -> str:
+    """Remove accents, lowercase text, and strip surrounding whitespace for matching."""
     return _strip_accents(s).lower().strip()
 
 
 def _parse_candidates(raw: list[dict]) -> list[GeoCandidate]:
+    """Convert provider records, skipping those that raise KeyError or TypeError.
+
+    Pydantic validation errors propagate. Missing timezone defaults to UTC;
+    missing country name and code default to empty strings.
+    """
     out: list[GeoCandidate] = []
     for item in raw:
         try:
@@ -47,7 +54,11 @@ def _parse_candidates(raw: list[dict]) -> list[GeoCandidate]:
 
 
 def _filter_by_country(candidates: list[GeoCandidate], country_hint: str) -> list[GeoCandidate]:
-    """Narrow candidates whose country name or code matches accent-insensitively."""
+    """Narrow candidates whose country name or code matches accent-insensitively.
+
+    Matching also ignores case and surrounding whitespace. Return the
+    original candidates if none match.
+    """
     norm = _normalise(country_hint)
     matched = [
         c for c in candidates
@@ -57,6 +68,13 @@ def _filter_by_country(candidates: list[GeoCandidate], country_hint: str) -> lis
 
 
 async def geocode(query: str, country_hint: Optional[str] = None) -> GeocodeResponse:
+    """Search for location candidates, selecting one only when exactly one remains.
+
+    Reuse and populate the disk cache by query and optional country hint.
+    The hint matches country name or code ignoring accents and case; an
+    unmatched hint leaves all results available. HTTP, JSON decoding, and
+    model validation errors propagate, as do malformed cache-data errors.
+    """
     cache_key = f"{query}|{country_hint or ''}"
     cached = geocode_cache.get(cache_key)
     if cached is not None:

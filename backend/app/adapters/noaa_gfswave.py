@@ -70,7 +70,10 @@ _refresh_lock = asyncio.Lock()
 
 
 def _latest_cycle(now: datetime) -> tuple[str, str]:
-    """Return (YYYYMMDD, HH) of the latest completed GFS-Wave cycle."""
+    """Return (YYYYMMDD, HH) for the cycle at least five hours before UTC now.
+
+    This estimates availability without checking whether the cycle is complete.
+    """
     # GFS cycle data typically available ~4-5 h after init; use a 5 h lag
     lag_h = 5
     ref = now - timedelta(hours=lag_h)
@@ -81,10 +84,12 @@ def _latest_cycle(now: datetime) -> tuple[str, str]:
 
 
 def _cache_path(date_str: str, hh: str) -> Path:
+    """Return the cache path for a cycle identified by YYYYMMDD and UTC HH."""
     return settings.noaa_data_dir / f"gfswave_{date_str}_{hh}.json"
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Return great-circle distance in kilometers for coordinates in degrees."""
     R = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -99,7 +104,12 @@ async def _fetch_one_hour(
     hh: str,
     fhour: int,
 ) -> Optional[dict]:
-    """Download one forecast-hour GRIB2 and decode with eccodes."""
+    """Fetch and decode a regional forecast at fhour hours after YYYYMMDD/HH UTC.
+
+    Return a UTC valid time and field grids, or None for HTTP errors,
+    non-200 responses, bodies shorter than 100 bytes, or no decoded fields.
+    Errors not handled by the decoder propagate.
+    """
     fname = f"gfswave.t{hh}z.global.0p16.f{fhour:03d}.grib2"
     params: dict[str, object] = {
         "file": fname,
@@ -125,7 +135,15 @@ async def _fetch_one_hour(
 
 
 def _decode_grib(content: bytes, date_str: str, hh: str, fhour: int) -> Optional[dict]:
-    """Decode GRIB2 bytes using eccodes and return a dict of field→grid arrays."""
+    """Return a UTC valid_time and field grids from a cycle's GRIB2 bytes.
+
+    The cycle is YYYYMMDD/HH UTC; fhour is its forecast offset in hours.
+    Each field contains parallel lats, lons, and vals lists, with missing
+    values replaced by None. Return None if eccodes is unavailable or no
+    requested fields were decoded. Handled ecCodes read errors may yield
+    partial data; other decoding errors propagate. Invalid cycle dates
+    raise ValueError when fields were decoded.
+    """
     try:
         import eccodes  # type: ignore
     except ImportError:
@@ -179,6 +197,13 @@ def _decode_grib(content: bytes, date_str: str, hh: str, fhour: int) -> Optional
 
 
 async def _refresh_cycle(date_str: str, hh: str) -> None:
+    """Fetch a cycle's regional forecasts and save available hours to disk.
+
+    Pace requests using the configured delay in seconds. Update the refresh
+    time only after writing nonempty results; leave an existing file alone
+    if no hours are retrieved. Always clear the running-task reference.
+    Unhandled fetch, decoding, and file-write errors propagate.
+    """
     global _last_refresh, _running_task
     log.info("Refreshing NOAA GFS-Wave cycle %s/%s", date_str, hh)
     path = _cache_path(date_str, hh)
@@ -203,7 +228,13 @@ async def _refresh_cycle(date_str: str, hh: str) -> None:
 
 
 async def maybe_refresh() -> None:
-    """Trigger a background refresh if data is stale, missing, or not running."""
+    """Schedule a NOAA refresh if none is running and the freshness check expires.
+
+    Use elapsed seconds since the last successful in-process refresh, or
+    otherwise the selected cycle cache's modification time. A fresh timestamp
+    suppresses refresh even if another cycle is now available. Return without
+    waiting for the background task; filesystem stat errors propagate.
+    """
     global _running_task
     async with _refresh_lock:
         if _running_task is not None and not _running_task.done():
@@ -232,7 +263,12 @@ def _nearest_point(
     lats: list[float], lons: list[float], vals: list[Optional[float]],
     target_lat: float, target_lon: float,
 ) -> tuple[Optional[float], float, float]:
-    """Return (value, grid_lat, grid_lon) for the nearest non-missing grid point."""
+    """Return (value, grid_lat, grid_lon) for the nearest non-missing grid point.
+
+    Coordinates are in degrees. Consider aligned entries up to the shortest
+    list and keep the first point in a distance tie. If no value is present,
+    return (None, target_lat, target_lon).
+    """
     best_val: Optional[float] = None
     best_dist = float("inf")
     best_lat = target_lat
@@ -252,7 +288,14 @@ def _nearest_point(
 
 
 def load_measurements(lat: float, lon: float) -> list[WaveMeasurement]:
-    """Load cached NOAA data and extract nearest-point measurements."""
+    """Extract each field's nearest non-missing value from the selected cycle cache.
+
+    Coordinates are in degrees; sampling distance is in kilometers and uses
+    the first available field's selected point. Return an empty list for a
+    missing file, read OSError, or invalid JSON. Malformed decoded entries,
+    invalid timestamps, and model validation errors propagate. No refresh
+    is triggered here.
+    """
     now = datetime.now(timezone.utc)
     date_str, hh = _latest_cycle(now)
     path = _cache_path(date_str, hh)

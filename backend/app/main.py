@@ -32,6 +32,7 @@ log = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Schedule the NOAA refresh check at startup and yield application control."""
     asyncio.create_task(noaa_gfswave.maybe_refresh())
     yield
 
@@ -48,6 +49,7 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health():
+    """Return an OK status and the current UTC time in ISO format."""
     return {"status": "ok", "time": datetime.now(tz.utc).isoformat()}
 
 
@@ -56,6 +58,11 @@ async def geocode_endpoint(
     q: str = Query(..., description="Location search string"),
     country: Optional[str] = Query(None, description="Optional country hint"),
 ):
+    """Search a trimmed location query with an optional country hint.
+
+    Raise HTTP 400 for whitespace-only queries, 404 for no candidates, and
+    502 for upstream HTTP errors. Other geocoding errors propagate.
+    """
     if not q.strip():
         raise HTTPException(status_code=400, detail="Query must not be empty")
     try:
@@ -76,6 +83,18 @@ async def forecast_endpoint(
     country: str = Query(""),
     country_code: str = Query(""),
 ):
+    """Return a cached or newly merged and scored forecast for coordinates in degrees.
+
+    The timezone and location labels are response metadata; timestamps are
+    not converted to the requested timezone. Record Open-Meteo wave and wind
+    failures in the response, and tolerate sea-level failures. Missing NOAA
+    data schedules a background refresh check. Cache new responses only when
+    there are no errors or warnings.
+
+    Raise HTTP 503 when Open-Meteo waves fail and no NOAA measurements exist;
+    a successful empty Open-Meteo result does not trigger this error. Malformed
+    NOAA data and cached-response validation errors propagate.
+    """
     cache_key = f"forecast|{lat:.4f}|{lon:.4f}|{timezone}|{name}|{country}"
     cached = forecast_cache.get(cache_key)
     if cached:
@@ -202,6 +221,7 @@ async def forecast_endpoint(
 
 
 def _wave_to_provider(measurements) -> list[ProviderHourly]:
+    """Copy raw wave values and grid provenance into provider comparison entries."""
     return [
         ProviderHourly(
             timestamp=m.timestamp,
@@ -219,6 +239,7 @@ def _wave_to_provider(measurements) -> list[ProviderHourly]:
 
 
 def _wind_to_provider(measurements) -> list[ProviderHourly]:
+    """Copy raw wind speed and direction into provider comparison entries."""
     return [
         ProviderHourly(
             timestamp=m.timestamp,

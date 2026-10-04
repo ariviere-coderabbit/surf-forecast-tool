@@ -35,10 +35,22 @@ _HOURLY_VARS = [
 
 
 def _parse_ts(s: str) -> datetime:
+    """Parse an ISO timestamp and replace its timezone with UTC without conversion.
+
+    Raise ValueError for an invalid timestamp string.
+    """
     return datetime.fromisoformat(s).replace(tzinfo=timezone.utc)
 
 
 async def fetch_waves(lat: float, lon: float) -> list[WaveMeasurement]:
+    """Fetch hourly waves from the configured model for coordinates in degrees.
+
+    Return UTC measurements with heights in meters, periods in seconds,
+    and directions in degrees, plus grid coordinates and sampling distance
+    in kilometers when available. Missing field values remain None; absent
+    timestamps yield an empty list. HTTP, JSON decoding, timestamp or numeric
+    conversion, and model validation errors propagate.
+    """
     params = {
         "latitude": lat,
         "longitude": lon,
@@ -66,6 +78,10 @@ async def fetch_waves(lat: float, lon: float) -> list[WaveMeasurement]:
     measurements: list[WaveMeasurement] = []
     for i, ts_str in enumerate(times):
         def _v(key: str) -> Optional[float]:
+            """Return this hour's numeric field, or None if absent or null.
+
+            Invalid numeric values raise TypeError or ValueError.
+            """
             vals = hourly.get(key, [])
             if i < len(vals):
                 v = vals[i]
@@ -95,6 +111,7 @@ async def fetch_waves(lat: float, lon: float) -> list[WaveMeasurement]:
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Return great-circle distance in kilometers for coordinates in degrees."""
     import math
     R = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)

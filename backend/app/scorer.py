@@ -33,6 +33,12 @@ def _direction_score(direction: float, ideal: float, tolerance: float) -> float:
 
 
 def _height_score(height_m: float, min_m: float, max_m: float) -> float:
+    """Score height in meters with a flat 1.0 from min_m through max_m.
+
+    Below min_m, return height_m / min_m when min_m is positive, otherwise
+    zero. Above max_m, decay to zero over max(max_m - min_m, max_m) meters;
+    a zero decay scale raises ZeroDivisionError.
+    """
     # Trapezoid: ramp up to min_m, flat 1.0 through max_m, then decay.
     # This avoids the discontinuity of a peaked-midpoint formula and uses
     # ideal_range as the decay scale so large max_m values still penalise
@@ -47,6 +53,11 @@ def _height_score(height_m: float, min_m: float, max_m: float) -> float:
 
 
 def _period_score(period_s: float, min_s: float) -> float:
+    """Score a period in seconds relative to min_s.
+
+    Below min_s, return period_s / min_s. At min_s, the score drops to 0.75,
+    then rises to a cap of 1.0. A zero min_s raises ZeroDivisionError.
+    """
     if period_s < min_s:
         return period_s / min_s
     # Gently increasing benefit beyond minimum, capped
@@ -54,6 +65,12 @@ def _period_score(period_s: float, min_s: float) -> float:
 
 
 def _wind_score(speed_mps: float, direction_deg: Optional[float], profile: SpotProfile) -> float:
+    """Score wind speed in meters per second and optional direction in degrees.
+
+    Use the speed score alone when either the observed or ideal direction
+    is missing; otherwise combine 70% speed and 30% direction. A zero profile
+    maximum wind speed raises ZeroDivisionError.
+    """
     speed_factor = max(0.0, 1.0 - speed_mps / profile.max_wind_speed_mps)
     if profile.ideal_wind_direction_deg is None or direction_deg is None:
         return speed_factor
@@ -66,7 +83,17 @@ def _wind_score(speed_mps: float, direction_deg: Optional[float], profile: SpotP
 
 
 def score_hour(h: HourlyConditions, profile: SpotProfile) -> tuple[float, float, dict]:
-    """Return (score 0–10, confidence 0–1, component weights)."""
+    """Return the weighted score, confidence, and unweighted component scores.
+
+    Prefer combined height and period, falling back to swell; prefer swell
+    direction, falling back to combined direction. Exclude missing components
+    from the weighted average. An unspecified ideal swell direction supplies
+    0.7 without increasing confidence, which counts observed components out
+    of four. With no contributing components, score and confidence are zero.
+
+    Scale the score by ten and round it and confidence to two decimal places;
+    inputs are not clamped. Invalid profile scales can raise ZeroDivisionError.
+    """
     components: dict[str, Optional[float]] = {
         "wave_height": None,
         "wave_period": None,
@@ -135,6 +162,11 @@ def score_hour(h: HourlyConditions, profile: SpotProfile) -> tuple[float, float,
 
 
 def score_all(hourly: list[HourlyConditions], profile: SpotProfile) -> list[HourlyConditions]:
+    """Return copies with scores, confidence, and component scores filled in.
+
+    Preserve input order and leave original conditions unchanged. Scoring
+    errors, including ZeroDivisionError from invalid profile scales, propagate.
+    """
     scored: list[HourlyConditions] = []
     for h in hourly:
         s, c, comp = score_hour(h, profile)
@@ -154,7 +186,14 @@ def score_all(hourly: list[HourlyConditions], profile: SpotProfile) -> list[Hour
 
 
 def best_window(hourly: list[HourlyConditions], min_score: float = 5.0) -> Optional[BestWindow]:
-    """Find the best continuous ≥3-hour window above min_score."""
+    """Choose the highest rounded mean score among qualifying runs and their suffixes.
+
+    Expect chronological input. Keep entries with score >= min_score and
+    extend each candidate until the next eligible timestamp is over 90 minutes
+    away. Require at least three entries; return None if none qualify. Ties
+    keep the first candidate. Start and end are the first and last sample
+    timestamps, and mean and peak scores are rounded to two decimal places.
+    """
     eligible = [h for h in hourly if h.score is not None and h.score >= min_score]
     if not eligible:
         return None
