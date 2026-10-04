@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { HourlyConditions } from '../api/types'
 import { formatTime } from '../utils/time'
 
@@ -18,7 +19,7 @@ function scoreCell(score: number | undefined) {
   return <td style={{ fontWeight: 600, color }}>{score.toFixed(1)}</td>
 }
 
-const TH: React.CSSProperties = {
+const TH: CSSProperties = {
   padding: '0.35rem 0.5rem',
   background: '#f5f5f5',
   borderBottom: '2px solid #ddd',
@@ -27,7 +28,7 @@ const TH: React.CSSProperties = {
   textAlign: 'left',
 }
 
-const TD: React.CSSProperties = {
+const TD: CSSProperties = {
   padding: '0.3rem 0.5rem',
   borderBottom: '1px solid #eee',
   fontSize: '0.85rem',

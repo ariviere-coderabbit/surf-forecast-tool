@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { ProviderSeries } from '../api/types'
 import { formatTime } from '../utils/time'
 
@@ -6,7 +7,7 @@ interface Props {
   timezone: string
 }
 
-const TH: React.CSSProperties = {
+const TH: CSSProperties = {
   padding: '0.3rem 0.5rem',
   background: '#f5f5f5',
   borderBottom: '2px solid #ddd',
@@ -15,7 +16,7 @@ const TH: React.CSSProperties = {
   textAlign: 'left',
 }
 
-const TD: React.CSSProperties = {
+const TD: CSSProperties = {
   padding: '0.25rem 0.5rem',
   borderBottom: '1px solid #eee',
   fontSize: '0.8rem',

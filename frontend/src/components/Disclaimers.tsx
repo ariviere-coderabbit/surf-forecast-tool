@@ -1,10 +1,12 @@
+import type { CSSProperties } from 'react'
+
 interface Props {
   notices: string[]
   warnings: string[]
   errors: string[]
 }
 
-const boxStyle = (color: string): React.CSSProperties => ({
+const boxStyle = (color: string): CSSProperties => ({
   background: color,
   border: `1px solid ${color === '#fff3cd' ? '#ffc107' : color === '#f8d7da' ? '#f5c6cb' : '#bee5eb'}`,
   borderRadius: 6,
