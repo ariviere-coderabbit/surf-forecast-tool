@@ -65,19 +65,22 @@ class TestHeightScore:
         s = _height_score(0.25, 0.5, 2.0)
         assert s == pytest.approx(0.5)
 
-    def test_ideal_midpoint(self):
-        # Mid between 0.5 and 2.0 is 1.25
-        s = _height_score(1.25, 0.5, 2.0)
-        assert s == pytest.approx(1.0)
+    def test_ideal_range_is_flat_1(self):
+        # Anywhere in [min_m, max_m] should score 1.0 (trapezoid flat top)
+        assert _height_score(0.5, 0.5, 2.0) == pytest.approx(1.0)
+        assert _height_score(1.25, 0.5, 2.0) == pytest.approx(1.0)
+        assert _height_score(2.0, 0.5, 2.0) == pytest.approx(1.0)
 
-    def test_too_big(self):
+    def test_too_big_penalised(self):
+        # 5m is 3m over max of 2m; ideal_range = 1.5; score = 1 - 3/1.5 = 0
         s = _height_score(5.0, 0.5, 2.0)
-        assert s < 0.5
+        assert s == pytest.approx(0.0)
 
-    def test_at_max(self):
-        # At max is still acceptable (score should be >= 0)
-        s = _height_score(2.0, 0.5, 2.0)
-        assert s >= 0.0
+    def test_continuous_at_max(self):
+        # No jump at the max_m boundary
+        at_max = _height_score(2.0, 0.5, 2.0)
+        just_over = _height_score(2.001, 0.5, 2.0)
+        assert abs(at_max - just_over) < 0.01
 
 
 class TestScoreHour:

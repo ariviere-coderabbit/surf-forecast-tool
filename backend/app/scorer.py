@@ -33,15 +33,17 @@ def _direction_score(direction: float, ideal: float, tolerance: float) -> float:
 
 
 def _height_score(height_m: float, min_m: float, max_m: float) -> float:
+    # Trapezoid: ramp up to min_m, flat 1.0 through max_m, then decay.
+    # This avoids the discontinuity of a peaked-midpoint formula and uses
+    # ideal_range as the decay scale so large max_m values still penalise
+    # significantly oversized surf.
     if height_m < min_m:
-        return height_m / min_m
+        return height_m / min_m if min_m > 0 else 0.0
     if height_m <= max_m:
-        # Peak at midpoint
-        mid = (min_m + max_m) / 2
-        return 1.0 - abs(height_m - mid) / (max_m - mid)
-    # Too big: linear decay
+        return 1.0
+    ideal_range = max(max_m - min_m, max_m)  # fallback prevents zero-div
     overshoot = height_m - max_m
-    return max(0.0, 1.0 - overshoot / max_m)
+    return max(0.0, 1.0 - overshoot / ideal_range)
 
 
 def _period_score(period_s: float, min_s: float) -> float:

@@ -16,7 +16,7 @@ from app import adapters
 from app.adapters import open_meteo_waves, open_meteo_wind, open_meteo_sealevel, noaa_gfswave
 from app.cache import forecast_cache
 from app.geocoding import geocode
-from app.merger import build_hourly
+from app.merger import build_hourly, _floor_hour
 from app.models import (
     ForecastResponse,
     GeoCandidate,
@@ -160,7 +160,6 @@ async def forecast_endpoint(
     sea_level_by_hour = {}
     try:
         sl_data = await open_meteo_sealevel.fetch_sea_level(lat, lon)
-        from app.merger import _floor_hour
         for m in sl_data:
             sea_level_by_hour[_floor_hour(m.timestamp)] = m.height_m
     except Exception:
@@ -195,9 +194,9 @@ async def forecast_endpoint(
         notices=notices,
     )
 
-    # Only cache complete responses (NOAA data present); partial ones should
-    # be re-fetched so warnings don't persist after the provider catches up.
-    if not warnings:
+    # Only cache fully successful responses so provider errors or missing NOAA
+    # data are not frozen in the cache for the full TTL.
+    if not warnings and not errors:
         forecast_cache.set(cache_key, response.model_dump(mode="json"))
     return response
 

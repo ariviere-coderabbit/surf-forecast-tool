@@ -79,7 +79,7 @@ def merge_waves(
             "wave_period_s": _prefer_period("wave_period_s"),
             "wave_direction_deg": _ci("wave_direction_deg"),
             "wind_wave_height_m": _sc("wind_wave_height_m"),
-            "wind_wave_period_s": _sc("wind_wave_period_s"),
+            "wind_wave_period_s": _prefer_period("wind_wave_period_s"),
             "wind_wave_direction_deg": _ci("wind_wave_direction_deg"),
             "swell_height_m": _sc("swell_height_m"),
             "swell_period_s": _prefer_period("swell_period_s"),

@@ -206,16 +206,26 @@ async def maybe_refresh() -> None:
     """Trigger a background refresh if data is stale, missing, or not running."""
     global _running_task
     async with _refresh_lock:
-        # If a refresh is already in flight, don't start another one.
         if _running_task is not None and not _running_task.done():
             return
-        if _last_refresh and (time.monotonic() - _last_refresh) < settings.noaa_refresh_interval:
-            return
+
         now = datetime.now(timezone.utc)
         date_str, hh = _latest_cycle(now)
         path = _cache_path(date_str, hh)
-        if not path.exists():
-            _running_task = asyncio.create_task(_refresh_cycle(date_str, hh))
+
+        # In-process: honour TTL from the last successful refresh.
+        if _last_refresh is not None:
+            if (time.monotonic() - _last_refresh) < settings.noaa_refresh_interval:
+                return
+        else:
+            # Post-restart: use the cache file's mtime so a stale file that
+            # survived a process restart still triggers a refresh.
+            if path.exists():
+                age = time.time() - path.stat().st_mtime
+                if age < settings.noaa_refresh_interval:
+                    return
+
+        _running_task = asyncio.create_task(_refresh_cycle(date_str, hh))
 
 
 def _nearest_point(
