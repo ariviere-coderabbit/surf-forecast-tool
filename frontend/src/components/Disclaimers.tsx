@@ -41,7 +41,7 @@ export default function Disclaimers({ notices, warnings, errors }: Props) {
       ))}
 
       <div style={{ fontSize: '0.78rem', color: '#888', marginTop: '0.5rem', lineHeight: 1.5 }}>
-        <strong>Attribution:</strong> Wave data: Open-Meteo Marine API (ICON-Wave, DWD) &amp; NOAA/NCEP GFS-Wave 0.16°.
+        <strong>Attribution:</strong> Wave data: Open-Meteo Marine API (DWD GWAM, DWD) &amp; NOAA/NCEP GFS-Wave 0.16°.
         Wind: Open-Meteo Forecast API. Geocoding: Open-Meteo Geocoding API. All free, non-commercial use.
         <br />
         Merged values use circular-mean directions and provider-preferred period statistics.

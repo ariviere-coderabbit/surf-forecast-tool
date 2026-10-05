@@ -7,14 +7,11 @@ import type { ForecastResponse, GeocodeResponse } from '../api/types'
 
 vi.mock('../api/client')
 
-const mockClient = client as {
-  geocode: ReturnType<typeof vi.fn>
-  fetchForecast: ReturnType<typeof vi.fn>
-}
+const mockClient = vi.mocked(client)
 
 function makeCandidate(name = 'Jacó', country = 'Costa Rica') {
   return {
-    id: 1, name, country, country_code: 'CR',
+    id: country === 'Costa Rica' ? 1 : 2, name, country, country_code: 'CR',
     latitude: 9.613, longitude: -84.628,
     timezone: 'America/Costa_Rica',
   }
@@ -51,6 +48,7 @@ function makeForecast(overrides: Partial<ForecastResponse> = {}): ForecastRespon
 describe('App', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(client.fetchSessionMatches).mockResolvedValue({ hour: '2024-01-15T12:00:00Z', status: 'available', matches: [] })
   })
 
   it('shows loading state while geocoding', async () => {
@@ -72,7 +70,7 @@ describe('App', () => {
     await userEvent.type(screen.getByRole('textbox'), 'Jaco')
     await userEvent.click(screen.getByRole('button', { name: /search/i }))
 
-    await waitFor(() => expect(screen.getByText('7.5')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('7.5')[0]).toBeInTheDocument())
     expect(screen.getByText(/jacó/i)).toBeInTheDocument()
   })
 
@@ -99,8 +97,8 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: /search/i }))
 
     await waitFor(() => screen.getByText(/multiple locations/i))
-    await userEvent.click(screen.getAllByRole('button')[0])
-    await waitFor(() => expect(screen.getByText('7.5')).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /Jacó — Costa Rica/ }))
+    await waitFor(() => expect(screen.getAllByText('7.5')[0]).toBeInTheDocument())
   })
 
   it('shows error message when geocode fails', async () => {
@@ -122,7 +120,25 @@ describe('App', () => {
     await userEvent.type(screen.getByRole('textbox'), 'Jaco')
     await userEvent.click(screen.getByRole('button', { name: /search/i }))
 
-    await waitFor(() => screen.getByText('7.5'))
+    await waitFor(() => screen.getAllByText('7.5')[0])
     expect(screen.getByText(/NOAA GFS-Wave data not yet cached/)).toBeInTheDocument()
   })
+  it('renders provider nulls returned by the live API without losing the journal', async () => {
+    const candidate = makeCandidate()
+    mockClient.geocode.mockResolvedValue({ query: 'Jaco', candidates: [candidate], selected: candidate })
+    mockClient.fetchForecast.mockResolvedValue(makeForecast({
+      hourly: [{ timestamp: '2024-01-15T12:00:00Z', score: null, confidence: null, score_wind: null }],
+      providers: [{ provider: 'open-meteo', model: 'best_match', status: 'ok', hourly: [{
+        timestamp: '2024-01-15T12:00:00Z', grid_lat: null, grid_lon: null, wave_height_m: null,
+        sampling_distance_km: null, wind_speed_mps: 3,
+      }] }],
+    }))
+    render(<App />)
+    await userEvent.type(screen.getByRole('textbox'), 'Jaco')
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(await screen.findByText('Provider data')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Log a session' })).toBeInTheDocument()
+    expect(await screen.findByText(/No sufficiently similar sessions/)).toBeInTheDocument()
+  })
+
 })

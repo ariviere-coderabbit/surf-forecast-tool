@@ -1,0 +1,15 @@
+.journal-panel { margin: 1.5rem 0; padding: 1rem; border: 1px solid #abc8c6; border-radius: 8px; background: #f6fbfa; }
+.journal-panel button { padding: .45rem .7rem; margin: .2rem 0; cursor: pointer; }
+.journal-panel button:disabled { cursor: wait; }
+.journal-panel label { display: block; margin: .8rem 0; }
+.journal-panel input, .journal-panel select, .journal-panel textarea { display: block; box-sizing: border-box; max-width: 100%; padding: .5rem; margin-top: .3rem; font: inherit; }
+.journal-panel textarea { width: 100%; }
+.journal-panel fieldset { margin-top: 1rem; min-width: 0; border: 1px solid #abc8c6; }
+.journal-panel article { margin-top: 1rem; padding: .8rem; border: 1px solid #c9d9d8; background: white; border-radius: 6px; }
+.journal-panel summary { cursor: pointer; margin: .6rem 0; }
+.journal-panel [role=alert] { color: #9c2020; }
+.journal-panel .selected-session { outline: 2px solid #237c76; }
+.journal-panel .session-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+.journal-panel .table-scroll { overflow-x: auto; }
+.journal-panel table { border-collapse: collapse; width: 100%; }
+.journal-panel td, .journal-panel th { text-align: left; padding: .5rem; border-bottom: 1px solid #ddd; }

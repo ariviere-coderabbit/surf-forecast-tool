@@ -8,7 +8,7 @@ Rules:
 - Period statistics are NOT mixed (a mean period from one source is never
   combined with a peak period from another). Providers are labelled with their
   period stat type, and the merger takes the mean only when both are the same type.
-  For GFS-Wave (mean period) vs ICON-Wave (dominant/peak period proxy), we keep
+  For GFS-Wave (mean period) vs DWD GWAM (dominant/peak period proxy), we keep
   them separate rather than averaging.
 """
 from __future__ import annotations

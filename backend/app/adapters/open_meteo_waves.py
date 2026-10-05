@@ -1,4 +1,4 @@
-"""Open-Meteo Marine API adapter — ICON-Wave (non-GFS) model.
+"""Open-Meteo Marine API adapter — DWD GWAM (non-GFS) model.
 
 Verified fields from https://open-meteo.com/en/docs/marine-weather-api (2024):
   wave_height, wave_direction, wave_period,

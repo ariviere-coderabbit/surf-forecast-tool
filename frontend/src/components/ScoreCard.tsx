@@ -4,7 +4,7 @@ import { formatLocal } from '../utils/time'
 interface Props {
   current: HourlyConditions
   profile: SpotProfile
-  bestWindow?: BestWindow
+  bestWindow?: BestWindow | null
   timezone: string
 }
 
@@ -15,8 +15,8 @@ function scoreColor(score: number): string {
   return '#e74c3c'
 }
 
-function bar(value: number | undefined, label: string) {
-  if (value === undefined) return null
+function bar(value: number | undefined | null, label: string) {
+  if (value == null) return null
   const pct = Math.round(value * 100)
   return (
     <div style={{ marginBottom: '0.4rem' }}>
@@ -35,12 +35,12 @@ export default function ScoreCard({ current, profile, bestWindow, timezone }: Pr
     <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '0.75rem' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', fontWeight: 700, color: score !== undefined ? scoreColor(score) : '#aaa', lineHeight: 1 }}>
-            {score !== undefined ? score.toFixed(1) : '—'}
+          <div style={{ fontSize: '3rem', fontWeight: 700, color: score != null ? scoreColor(score) : '#aaa', lineHeight: 1 }}>
+            {score != null ? score.toFixed(1) : '—'}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#666' }}>/ 10</div>
           <div style={{ fontSize: '0.8rem', color: '#888', marginTop: 2 }}>
-            {conf !== undefined ? `${Math.round(conf * 100)}% confidence` : '—'}
+            {conf != null ? `${Math.round(conf * 100)}% confidence` : '—'}
           </div>
         </div>
         <div>

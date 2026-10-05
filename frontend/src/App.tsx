@@ -7,10 +7,12 @@ import HourlyTable from './components/HourlyTable'
 import ProviderComparison from './components/ProviderComparison'
 import ScoreCard from './components/ScoreCard'
 import SearchBar from './components/SearchBar'
+import Journal from './components/Journal'
 
 type Phase = 'idle' | 'geocoding' | 'candidates' | 'forecasting' | 'done' | 'error'
 
 export default function App() {
+  const [location, setLocation] = useState<GeoCandidate>()
   const [phase, setPhase] = useState<Phase>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [geocodeResult, setGeocodeResult] = useState<GeocodeResponse | null>(null)
@@ -21,6 +23,7 @@ export default function App() {
     setErrorMsg(null)
     setGeocodeResult(null)
     setForecast(null)
+    setLocation(undefined)
     try {
       const result = await geocode(query)
       if (result.candidates.length === 0) {
@@ -41,6 +44,7 @@ export default function App() {
   }
 
   async function loadForecast(candidate: GeoCandidate) {
+    setLocation(candidate)
     setPhase('forecasting')
     setGeocodeResult(null)
     try {
@@ -54,7 +58,7 @@ export default function App() {
   }
 
   const loading = phase === 'geocoding' || phase === 'forecasting'
-  const currentHour = forecast?.hourly[0]
+  const currentHour = forecast?.hourly.find(h => new Date(h.timestamp).getTime() >= Math.floor(Date.now() / 3600000) * 3600000) ?? forecast?.hourly[0]
   const timezone = forecast?.location.timezone ?? 'UTC'
 
   return (
@@ -80,13 +84,16 @@ export default function App() {
       )}
 
       {phase === 'done' && forecast && currentHour && (
-        <>
           <ScoreCard
             current={currentHour}
             profile={forecast.spot_profile}
             bestWindow={forecast.best_window}
             timezone={timezone}
           />
+      )}
+      <Journal location={location} forecast={forecast ?? undefined} />
+      {phase === 'done' && forecast && (
+        <>
           <HourlyTable hourly={forecast.hourly} timezone={timezone} />
           <ProviderComparison providers={forecast.providers} timezone={timezone} />
           <Disclaimers

@@ -40,3 +40,6 @@ coverage.json
 .idea/
 .vscode/
 *.swp
+
+# Durable personal journal (back up separately)
+backend/data/*.sqlite3*

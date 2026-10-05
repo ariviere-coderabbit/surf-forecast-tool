@@ -78,7 +78,7 @@ export default function ProviderComparison({ providers, timezone }: Props) {
                       <td style={TD}>{v(h.wind_speed_mps)}</td>
                       <td style={TD}>{v(h.wind_direction_deg, 0)}</td>
                       <td style={TD}>
-                        {h.grid_lat !== undefined && h.grid_lon !== undefined
+                        {h.grid_lat != null && h.grid_lon != null
                           ? `${h.grid_lat.toFixed(2)}, ${h.grid_lon.toFixed(2)}`
                           : '—'}
                       </td>

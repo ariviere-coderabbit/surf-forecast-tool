@@ -20,7 +20,7 @@ def _make_waves(n: int = 3) -> list[WaveMeasurement]:
         WaveMeasurement(
             timestamp=_ts(i),
             provider="open-meteo",
-            model="icon_wave",
+            model="gwam",
             wave_height_m=1.2,
             wave_period_s=12.0,
             wave_direction_deg=200.0,
@@ -100,11 +100,11 @@ async def test_forecast_success(api_client, tmp_path, monkeypatch):
     monkeypatch.setattr("app.cache.forecast_cache._dir", tmp_path)
 
     with (
-        patch("app.main.open_meteo_waves.fetch_waves", return_value=_make_waves(5)),
-        patch("app.main.open_meteo_wind.fetch_wind", return_value=_make_wind(5)),
-        patch("app.main.open_meteo_sealevel.fetch_sea_level", return_value=[]),
-        patch("app.main.noaa_gfswave.load_measurements", return_value=[]),
-        patch("app.main.noaa_gfswave.maybe_refresh", new_callable=AsyncMock),
+        patch("app.forecast.open_meteo_waves.fetch_waves", return_value=_make_waves(5)),
+        patch("app.forecast.open_meteo_wind.fetch_wind", return_value=_make_wind(5)),
+        patch("app.forecast.open_meteo_sealevel.fetch_sea_level", return_value=[]),
+        patch("app.forecast.noaa_gfswave.load_measurements", return_value=[]),
+        patch("app.forecast.noaa_gfswave.maybe_refresh", new_callable=AsyncMock),
     ):
         resp = await api_client.get(
             "/api/forecast",
@@ -124,11 +124,11 @@ async def test_forecast_partial_when_noaa_missing(api_client, tmp_path, monkeypa
     monkeypatch.setattr("app.cache.forecast_cache._dir", tmp_path)
 
     with (
-        patch("app.main.open_meteo_waves.fetch_waves", return_value=_make_waves(3)),
-        patch("app.main.open_meteo_wind.fetch_wind", return_value=_make_wind(3)),
-        patch("app.main.open_meteo_sealevel.fetch_sea_level", return_value=[]),
-        patch("app.main.noaa_gfswave.load_measurements", return_value=[]),
-        patch("app.main.noaa_gfswave.maybe_refresh", new_callable=AsyncMock),
+        patch("app.forecast.open_meteo_waves.fetch_waves", return_value=_make_waves(3)),
+        patch("app.forecast.open_meteo_wind.fetch_wind", return_value=_make_wind(3)),
+        patch("app.forecast.open_meteo_sealevel.fetch_sea_level", return_value=[]),
+        patch("app.forecast.noaa_gfswave.load_measurements", return_value=[]),
+        patch("app.forecast.noaa_gfswave.maybe_refresh", new_callable=AsyncMock),
     ):
         resp = await api_client.get(
             "/api/forecast",
@@ -148,11 +148,11 @@ async def test_forecast_503_when_all_wave_providers_fail(api_client, tmp_path, m
     monkeypatch.setattr("app.cache.forecast_cache._dir", tmp_path)
 
     with (
-        patch("app.main.open_meteo_waves.fetch_waves", side_effect=Exception("network error")),
-        patch("app.main.open_meteo_wind.fetch_wind", return_value=[]),
-        patch("app.main.open_meteo_sealevel.fetch_sea_level", return_value=[]),
-        patch("app.main.noaa_gfswave.load_measurements", return_value=[]),
-        patch("app.main.noaa_gfswave.maybe_refresh", new_callable=AsyncMock),
+        patch("app.forecast.open_meteo_waves.fetch_waves", side_effect=Exception("network error")),
+        patch("app.forecast.open_meteo_wind.fetch_wind", return_value=[]),
+        patch("app.forecast.open_meteo_sealevel.fetch_sea_level", return_value=[]),
+        patch("app.forecast.noaa_gfswave.load_measurements", return_value=[]),
+        patch("app.forecast.noaa_gfswave.maybe_refresh", new_callable=AsyncMock),
     ):
         resp = await api_client.get(
             "/api/forecast",
@@ -173,11 +173,11 @@ async def test_forecast_uses_generic_profile_for_unknown_location(api_client, tm
     monkeypatch.setattr("app.cache.forecast_cache._dir", tmp_path)
 
     with (
-        patch("app.main.open_meteo_waves.fetch_waves", return_value=_make_waves(3)),
-        patch("app.main.open_meteo_wind.fetch_wind", return_value=_make_wind(3)),
-        patch("app.main.open_meteo_sealevel.fetch_sea_level", return_value=[]),
-        patch("app.main.noaa_gfswave.load_measurements", return_value=[]),
-        patch("app.main.noaa_gfswave.maybe_refresh", new_callable=AsyncMock),
+        patch("app.forecast.open_meteo_waves.fetch_waves", return_value=_make_waves(3)),
+        patch("app.forecast.open_meteo_wind.fetch_wind", return_value=_make_wind(3)),
+        patch("app.forecast.open_meteo_sealevel.fetch_sea_level", return_value=[]),
+        patch("app.forecast.noaa_gfswave.load_measurements", return_value=[]),
+        patch("app.forecast.noaa_gfswave.maybe_refresh", new_callable=AsyncMock),
     ):
         resp = await api_client.get(
             "/api/forecast",

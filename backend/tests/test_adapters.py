@@ -51,7 +51,7 @@ async def test_fetch_waves_parsing():
     assert m.wave_direction_deg == pytest.approx(200.0)
     assert m.swell_height_m == pytest.approx(1.0)
     assert m.provider == "open-meteo"
-    assert m.model == "icon_wave"
+    assert m.model == "gwam"
     assert m.timestamp.tzinfo is not None  # UTC-aware
 
 

@@ -8,13 +8,13 @@ interface Props {
 }
 
 /** Display a value or an em-dash when missing, distinguishing zero from absent. */
-function val(v: number | undefined, decimals = 1, unit = ''): string {
+function val(v: number | undefined | null, decimals = 1, unit = ''): string {
   if (v === undefined || v === null) return '—'
   return `${v.toFixed(decimals)}${unit}`
 }
 
-function scoreCell(score: number | undefined) {
-  if (score === undefined) return <td>—</td>
+function scoreCell(score: number | undefined | null) {
+  if (score == null) return <td>—</td>
   const color = score >= 8 ? '#27ae60' : score >= 6 ? '#f39c12' : score >= 4 ? '#e67e22' : '#e74c3c'
   return <td style={{ fontWeight: 600, color }}>{score.toFixed(1)}</td>
 }
@@ -59,7 +59,7 @@ export default function HourlyTable({ hourly, timezone }: Props) {
             <tr key={h.timestamp}>
               <td style={TD}>{formatTime(h.timestamp, timezone)}</td>
               {scoreCell(h.score)}
-              <td style={TD}>{h.confidence !== undefined ? `${Math.round(h.confidence * 100)}%` : '—'}</td>
+              <td style={TD}>{h.confidence != null ? `${Math.round(h.confidence * 100)}%` : '—'}</td>
               <td style={TD}>{val(h.wave_height_m, 2, ' m')}</td>
               <td style={TD}>{val(h.wave_period_s, 1, ' s')}</td>
               <td style={TD}>{val(h.wave_direction_deg, 0, '°')}</td>
