@@ -54,6 +54,9 @@ class WaveMeasurement(BaseModel):
     swell_period_s: Optional[float] = None
     swell_direction_deg: Optional[float] = None
 
+    forecast_cycle: Optional[datetime] = None
+    is_fallback: bool = False
+
     # Grid provenance
     grid_lat: Optional[float] = None
     grid_lon: Optional[float] = None
@@ -106,6 +109,8 @@ class HourlyConditions(BaseModel):
     # Sea level
     sea_level_m: Optional[float] = None
 
+    uses_fallback: bool = False
+
     # Surfability
     score: Optional[float] = None             # 0–10
     confidence: Optional[float] = None        # 0–1
@@ -140,6 +145,8 @@ class ProviderSeries(BaseModel):
     model: str
     status: str                               # "ok" | "error" | "partial"
     error: Optional[str] = None
+    forecast_cycle: Optional[datetime] = None
+    is_fallback: bool = False
     hourly: list[ProviderHourly] = []
 
 

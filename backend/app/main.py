@@ -92,10 +92,12 @@ async def forecast_endpoint(
     there are no errors or warnings.
 
     Raise HTTP 503 when Open-Meteo waves fail and no NOAA measurements exist;
-    a successful empty Open-Meteo result does not trigger this error. Malformed
-    NOAA data and cached-response validation errors propagate.
+    empty Open-Meteo results also count as unavailable. Invalid NOAA snapshots
+    are skipped in favor of a recent usable cycle. Fallback responses are not cached.
     """
-    cache_key = f"forecast|{lat:.4f}|{lon:.4f}|{timezone}|{name}|{country}"
+    # Hour buckets prevent cached responses crossing a cycle/age boundary.
+    bucket = datetime.now(tz.utc).strftime("%Y%m%d%H")
+    cache_key = f"forecast-v2|{bucket}|{lat:.4f}|{lon:.4f}|{timezone}|{name}|{country}"
     cached = forecast_cache.get(cache_key)
     if cached:
         return ForecastResponse(**cached)
@@ -120,7 +122,8 @@ async def forecast_endpoint(
     # Open-Meteo (ICON-Wave)
     try:
         om_waves = await open_meteo_waves.fetch_waves(lat, lon)
-        wave_sources.append(om_waves)
+        if om_waves:
+            wave_sources.append(om_waves)
         provider_series.append(
             ProviderSeries(
                 provider="open-meteo",
@@ -138,18 +141,24 @@ async def forecast_endpoint(
     # NOAA GFS-Wave (from disk cache)
     noaa_waves = noaa_gfswave.load_measurements(lat, lon)
     if noaa_waves:
+        is_fallback = any(m.is_fallback for m in noaa_waves)
+        if is_fallback:
+            warnings.append("NOAA is using an older forecast cycle; confidence is reduced.")
+            asyncio.create_task(noaa_gfswave.maybe_refresh(force=True))
         wave_sources.append(noaa_waves)
         provider_series.append(
             ProviderSeries(
                 provider="noaa-ncep",
                 model="GFS-Wave-0.16",
-                status="ok",
+                status="partial" if is_fallback else "ok",
+                is_fallback=is_fallback,
+                forecast_cycle=noaa_waves[0].forecast_cycle,
                 hourly=_wave_to_provider(noaa_waves),
             )
         )
     else:
         warnings.append("NOAA GFS-Wave data not yet cached; background refresh scheduled.")
-        asyncio.create_task(noaa_gfswave.maybe_refresh())
+        asyncio.create_task(noaa_gfswave.maybe_refresh(force=True))
 
     if not wave_sources:
         raise HTTPException(

@@ -218,7 +218,9 @@ async def _refresh_cycle(date_str: str, hh: str) -> None:
                 await asyncio.sleep(settings.noaa_request_pace)
 
         if hours_data:
-            path.write_text(json.dumps(hours_data))
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(hours_data))
+            temporary.replace(path)
             log.info("Saved %d NOAA forecast hours to %s", len(hours_data), path)
             _last_refresh = time.monotonic()
         else:
@@ -227,13 +229,14 @@ async def _refresh_cycle(date_str: str, hh: str) -> None:
         _running_task = None
 
 
-async def maybe_refresh() -> None:
+async def maybe_refresh(*, force: bool = False) -> None:
     """Schedule a NOAA refresh if none is running and the freshness check expires.
 
     Use elapsed seconds since the last successful in-process refresh, or
     otherwise the selected cycle cache's modification time. A fresh timestamp
-    suppresses refresh even if another cycle is now available. Return without
-    waiting for the background task; filesystem stat errors propagate.
+    suppresses refresh only when the expected cycle file exists. Force bypasses
+    this throttle for missing/unusable data, but never starts a duplicate task.
+    Return without waiting for the download; filesystem stat errors propagate.
     """
     global _running_task
     async with _refresh_lock:
@@ -245,13 +248,13 @@ async def maybe_refresh() -> None:
         path = _cache_path(date_str, hh)
 
         # In-process: honour TTL from the last successful refresh.
-        if _last_refresh is not None:
+        if not force and path.exists() and _last_refresh is not None:
             if (time.monotonic() - _last_refresh) < settings.noaa_refresh_interval:
                 return
         else:
             # Post-restart: use the cache file's mtime so a stale file that
             # survived a process restart still triggers a refresh.
-            if path.exists():
+            if not force and path.exists():
                 age = time.time() - path.stat().st_mtime
                 if age < settings.noaa_refresh_interval:
                     return
@@ -287,31 +290,46 @@ def _nearest_point(
     return best_val, best_lat, best_lon
 
 
-def load_measurements(lat: float, lon: float) -> list[WaveMeasurement]:
-    """Extract each field's nearest non-missing value from the selected cycle cache.
+def load_measurements(
+    lat: float, lon: float, *, now: Optional[datetime] = None,
+) -> list[WaveMeasurement]:
+    """Use the newest usable cycle within the age limit, measured from issue time.
 
-    Coordinates are in degrees; sampling distance is in kilometers and uses
-    the first available field's selected point. Return an empty list for a
-    missing file, read OSError, or invalid JSON. Malformed decoded entries,
-    invalid timestamps, and model validation errors propagate. No refresh
-    is triggered here.
+    Never use cycles newer than the expected published cycle. Skip corrupt,
+    empty, expired, and past-only snapshots. Forecast valid time is distinct
+    from cycle issue time: a future prediction can still come from an old run.
     """
-    now = datetime.now(timezone.utc)
+    now = now or datetime.now(timezone.utc)
     date_str, hh = _latest_cycle(now)
-    path = _cache_path(date_str, hh)
+    latest = datetime.strptime(date_str + hh, "%Y%m%d%H").replace(tzinfo=timezone.utc)
+    cycle = latest
+    while (now - cycle).total_seconds() <= settings.noaa_max_cycle_age_hours * 3600:
+        path = _cache_path(cycle.strftime("%Y%m%d"), cycle.strftime("%H"))
+        try:
+            hours_data = json.loads(path.read_text())
+            measurements = _extract_measurements(hours_data, lat, lon, now)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            measurements = []
+        if measurements:
+            return [m.model_copy(update={
+                "forecast_cycle": cycle,
+                "is_fallback": cycle != latest,
+            }) for m in measurements]
+        cycle -= timedelta(hours=6)
+    return []
 
-    if not path.exists():
-        log.debug("No NOAA cache found at %s", path)
-        return []
 
-    try:
-        hours_data: list[dict] = json.loads(path.read_text())
-    except (json.JSONDecodeError, OSError):
-        return []
-
+def _extract_measurements(hours_data, lat, lon, now) -> list[WaveMeasurement]:
+    """Decode one snapshot; malformed snapshots are rejected by the caller."""
+    if not isinstance(hours_data, list):
+        raise ValueError("NOAA snapshot must contain a list of hours")
     measurements: list[WaveMeasurement] = []
     for hour in hours_data:
         valid_time = datetime.fromisoformat(hour["valid_time"])
+        if valid_time.tzinfo is None:
+            raise ValueError("NOAA valid time must include a timezone")
+        if valid_time < now.replace(minute=0, second=0, microsecond=0):
+            continue
         fields: dict[str, dict] = hour.get("fields", {})
 
         kwargs: dict = {
@@ -340,6 +358,8 @@ def load_measurements(lat: float, lon: float) -> list[WaveMeasurement]:
             kwargs["grid_lon"] = grid_lon
             kwargs["sampling_distance_km"] = _haversine_km(lat, lon, grid_lat, grid_lon)
 
-        measurements.append(WaveMeasurement(**kwargs))
+        measurement = WaveMeasurement(**kwargs)
+        if measurement.wave_height_m is not None or measurement.swell_height_m is not None:
+            measurements.append(measurement)
 
     return measurements

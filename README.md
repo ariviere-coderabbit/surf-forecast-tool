@@ -106,3 +106,25 @@ backend/
     test_adapters.py
     test_api.py
 ```
+
+### Delayed NOAA forecasts
+
+When the expected NOAA cycle is unavailable or unusable, the API searches older
+six-hour cycles, newest first. `NOAA_MAX_CYCLE_AGE_HOURS` (default 24, range 6–120)
+limits age **since the cycle was issued**, not since its file was downloaded.
+Expired cycles, invalid snapshots, and past-only predictions are not served.
+
+The NOAA provider response includes `forecast_cycle` and `is_fallback`; fallback
+has `status: partial` and a warning. Hours using fallback data expose
+`uses_fallback: true`. Their confidence is multiplied by 0.75, a deliberately
+uncalibrated heuristic; predicted surf scores remain unchanged. Missing hours
+are not interpolated. An older run may have less remaining forecast coverage.
+
+Fallback responses bypass the response cache and request a background refresh,
+so a recovered provider can be picked up on the next request. Fully successful
+responses remain cached within the current UTC hour. Snapshots are published
+with an atomic rename so readers never see a partially written JSON file.
+
+For a demo, follow the change through snapshot selection, API provenance,
+merge/scoring, and outage/recovery tests. These are related parts of one behavior:
+keep forecasts useful during a delay without presenting older data as fresh.
