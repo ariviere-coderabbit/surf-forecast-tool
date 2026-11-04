@@ -91,6 +91,7 @@ def merge_waves(
             )
 
         merged[ts] = {
+            "uses_fallback": any(m.is_fallback for m in measurements),
             "wave_height_m": _sc("wave_height_m"),
             "wave_period_s": _prefer_period("wave_period_s"),
             "wave_direction_deg": _ci("wave_direction_deg"),

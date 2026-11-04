@@ -156,7 +156,9 @@ def score_hour(h: HourlyConditions, profile: SpotProfile) -> tuple[float, float,
 
     score_0_1 = raw / total_weight
     score = round(score_0_1 * 10, 2)
-    confidence = round(data_count / total_fields, 2)
+    # Older waves change our certainty, not the predicted surf conditions.
+    freshness_factor = 0.75 if h.uses_fallback else 1.0
+    confidence = round(data_count / total_fields * freshness_factor, 2)
 
     return score, confidence, components
 

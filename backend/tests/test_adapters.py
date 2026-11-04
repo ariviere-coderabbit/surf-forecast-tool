@@ -191,18 +191,10 @@ def test_load_measurements_from_synthetic_cache(tmp_path, monkeypatch):
         }
     ]
 
-    now = datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
-    with patch("app.adapters.noaa_gfswave.datetime") as mock_dt:
-        mock_dt.now.return_value = now
-        mock_dt.fromisoformat = datetime.fromisoformat
-        mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
-
-        date_str, hh = "20240115", "00"
-        path = tmp_path / f"gfswave_{date_str}_{hh}.json"
-        path.write_text(json.dumps(hour_data))
-
-        with patch("app.adapters.noaa_gfswave._latest_cycle", return_value=(date_str, hh)):
-            result = load_measurements(9.613, -84.628)
+    now = datetime(2024, 1, 15, 6, tzinfo=timezone.utc)
+    path = tmp_path / "gfswave_20240115_00.json"
+    path.write_text(json.dumps(hour_data))
+    result = load_measurements(9.613, -84.628, now=now)
 
     assert len(result) == 1
     m = result[0]
